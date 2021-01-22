@@ -217,6 +217,9 @@ def domain_remove(operation_logger, domain, force=False):
 
     os.system('rm -rf /etc/yunohost/certs/%s' % domain)
 
+    # Delete dyndns keys for this domain (if any)
+    os.system('rm -rf /etc/yunohost/dyndns/K%s.+*' % domain)
+
     # Sometime we have weird issues with the regenconf where some files
     # appears as manually modified even though they weren't touched ...
     # There are a few ideas why this happens (like backup/restore nginx
