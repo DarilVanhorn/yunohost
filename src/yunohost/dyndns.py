@@ -40,6 +40,7 @@ from yunohost.utils.error import YunohostError
 from yunohost.domain import _get_maindomain, _build_dns_conf
 from yunohost.utils.network import get_public_ip, dig
 from yunohost.log import is_unit_operation
+from yunohost.regenconf import regen_conf
 
 logger = getActionLogger('yunohost.dyndns')
 
@@ -118,7 +119,8 @@ def dyndns_subscribe(operation_logger, subscribe_host="dyndns.yunohost.org", dom
         subscribe_host -- Dynette HTTP API to subscribe to
 
     """
-    if len(glob.glob('/etc/yunohost/dyndns/*.key')) != 0 or os.path.exists('/etc/cron.d/yunohost-dyndns'):
+
+    if _guess_current_dyndns_domain(dyn_host) != (None, None):
         raise YunohostError('domain_dyndns_already_subscribed')
 
     if domain is None:
@@ -168,9 +170,17 @@ def dyndns_subscribe(operation_logger, subscribe_host="dyndns.yunohost.org", dom
             error = "Server error, code: %s. (Message: \"%s\")" % (r.status_code, r.text)
         raise YunohostError('dyndns_registration_failed', error=error)
 
-    logger.success(m18n.n('dyndns_registered'))
+    # Yunohost regen conf will add the dyndns cron job if a private key exists
+    # in /etc/yunohost/dyndns
+    regen_conf("yunohost")
 
-    dyndns_installcron()
+    # Add some dyndns update in 2 and 4 minutes from now such that user should
+    # not have to wait 10ish minutes for the conf to propagate
+    cmd = "at -M now + {t} >/dev/null 2>&1 <<< \"/bin/bash -c 'yunohost dyndns update'\""
+    subprocess.check_call(cmd.format(t="2 min"), shell=True)
+    subprocess.check_call(cmd.format(t="4 min"), shell=True)
+
+    logger.success(m18n.n('dyndns_registered'))
 
 
 @is_unit_operation()
@@ -194,6 +204,10 @@ def dyndns_update(operation_logger, dyn_host="dyndns.yunohost.org", domain=None,
     # If domain is not given, try to guess it from keys available...
     if domain is None:
         (domain, key) = _guess_current_dyndns_domain(dyn_host)
+
+    if domain is None:
+        raise YunohostError('dyndns_no_domain_registered')
+
     # If key is not given, pick the first file we find with the domain given
     else:
         if key is None:
@@ -380,4 +394,4 @@ def _guess_current_dyndns_domain(dyn_host):
         else:
             return (_domain, path)
 
-    raise YunohostError('dyndns_no_domain_registered')
+    return (None, None)
