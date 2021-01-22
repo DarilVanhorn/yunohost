@@ -120,7 +120,7 @@ def dyndns_subscribe(operation_logger, subscribe_host="dyndns.yunohost.org", dom
 
     """
 
-    if _guess_current_dyndns_domain(dyn_host) != (None, None):
+    if _guess_current_dyndns_domain(subscribe_host) != (None, None):
         raise YunohostError('domain_dyndns_already_subscribed')
 
     if domain is None:
